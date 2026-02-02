@@ -1,0 +1,8 @@
+[package]
+name = "graphics-engine"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+sdl2 = { version = "0.38", features = ["image", "ttf", "mixer"] }
+log = "0.4.29"
