@@ -1,4 +1,6 @@
 use std::f32::consts::PI;
+use std::fs::File;
+use std::io::{self, BufRead, BufReader};
 use sdl2::pixels::Color;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
@@ -14,26 +16,27 @@ pub fn main() {
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
 
-    let points: Vec<P> = vec![
-        P { x: 0.25, y: 0.25, z: 0.25},
-        P { x: -0.25, y: 0.25, z: 0.25},
-        P { x: -0.25, y: -0.25, z: 0.25},
-        P { x: 0.25, y: -0.25, z: 0.25},
+    let (points, faces) = get_vertices().unwrap();
+    // let points: Vec<P> = vec![
+    //     P { x: 0.25, y: 0.25, z: 0.25},
+    //     P { x: -0.25, y: 0.25, z: 0.25},
+    //     P { x: -0.25, y: -0.25, z: 0.25},
+    //     P { x: 0.25, y: -0.25, z: 0.25},
+    //
+    //     P { x: 0.25, y: 0.25, z: -0.25},
+    //     P { x: -0.25, y: 0.25, z: -0.25},
+    //     P { x: -0.25, y: -0.25, z: -0.25},
+    //     P { x: 0.25, y: -0.25, z: -0.25},
+    // ];
 
-        P { x: 0.25, y: 0.25, z: -0.25},
-        P { x: -0.25, y: 0.25, z: -0.25},
-        P { x: -0.25, y: -0.25, z: -0.25},
-        P { x: 0.25, y: -0.25, z: -0.25},
-    ];
-
-    let faces: Vec<Vec<i32>> = vec![
-        vec![0, 1, 2, 3],
-        vec![4, 5, 6, 7],
-        vec![0, 4],
-        vec![1, 5],
-        vec![2, 6],
-        vec![3, 7],
-    ];
+    // let faces: Vec<Vec<i32>> = vec![
+    //     vec![0, 1, 2, 3],
+    //     vec![4, 5, 6, 7],
+    //     vec![0, 4],
+    //     vec![1, 5],
+    //     vec![2, 6],
+    //     vec![3, 7],
+    // ];
 
     let window = video_subsystem.window("rust-sdl2 demo", WIDTH as u32, HEIGHT as u32)
         .position_centered()
@@ -43,7 +46,7 @@ pub fn main() {
     let mut canvas = window.into_canvas().build().unwrap();
 
     let mut event_pump = sdl_context.event_pump().unwrap();
-    let mut z = 1.0;
+    let mut z = 5.0;
     let mut angle = 1.0;
     'running: loop {
         // z = z + 0.01;
@@ -129,6 +132,29 @@ pub fn rotate_xz(p: P, angle: f32) -> P {
         z: p.x * angle.sin() + p.z * angle.cos(),
         y: p.y
     }
+}
+
+pub fn get_vertices() -> io::Result<(Vec<P>, Vec<Vec<i32>>)> {
+    let file = File::open("teapot.obj")?;
+    let reader = BufReader::new(file);
+    let mut vertices: Vec<P> = Vec::new();
+    let mut faces: Vec<Vec<i32>> = Vec::new();
+
+    for (_index, line) in reader.lines().enumerate() {
+        let line = line?;
+        let words: Vec<&str> = line.split_whitespace().collect();
+        if words.len() > 0 && words[0] == "v" {
+            vertices.push(P {
+                x: words[1].parse().expect("Not a valid number"),
+                y: words[2].parse().expect("Not a valid number"),
+                z: words[3].parse().expect("Not a valid number")
+            });
+        }
+        if words.len() > 0 && words[0] == "f" {
+            faces.push(words.iter().skip(1).map(|x| x.parse::<i32>().expect("Not a valid number") - 1).collect())
+        }
+    }
+    Ok((vertices, faces))
 }
 
 #[derive(Debug, Clone, Copy)]
