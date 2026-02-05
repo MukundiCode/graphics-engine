@@ -6,8 +6,9 @@ use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use std::time::Duration;
 use sdl2::rect::{FPoint, FRect, Rect};
-use sdl2::render::{Canvas, WindowCanvas};
-use log::debug;
+use sdl2::render::{WindowCanvas};
+use nalgebra::*;
+use log::{debug, log};
 
 const WIDTH: i32 = 800;
 const HEIGHT: i32 = 600;
@@ -17,26 +18,6 @@ pub fn main() {
     let video_subsystem = sdl_context.video().unwrap();
 
     let (points, faces) = get_vertices().unwrap();
-    // let points: Vec<P> = vec![
-    //     P { x: 0.25, y: 0.25, z: 0.25},
-    //     P { x: -0.25, y: 0.25, z: 0.25},
-    //     P { x: -0.25, y: -0.25, z: 0.25},
-    //     P { x: 0.25, y: -0.25, z: 0.25},
-    //
-    //     P { x: 0.25, y: 0.25, z: -0.25},
-    //     P { x: -0.25, y: 0.25, z: -0.25},
-    //     P { x: -0.25, y: -0.25, z: -0.25},
-    //     P { x: 0.25, y: -0.25, z: -0.25},
-    // ];
-
-    // let faces: Vec<Vec<i32>> = vec![
-    //     vec![0, 1, 2, 3],
-    //     vec![4, 5, 6, 7],
-    //     vec![0, 4],
-    //     vec![1, 5],
-    //     vec![2, 6],
-    //     vec![3, 7],
-    // ];
 
     let window = video_subsystem.window("rust-sdl2 demo", WIDTH as u32, HEIGHT as u32)
         .position_centered()
@@ -46,17 +27,36 @@ pub fn main() {
     let mut canvas = window.into_canvas().build().unwrap();
 
     let mut event_pump = sdl_context.event_pump().unwrap();
-    let mut z = 5.0;
+    let z = 5.0;
     let mut angle = 1.0;
+
+    let mut translation_params = TranslationParams {
+        dx: 0.0,
+        dy: 0.0,
+        dz: 10.0,
+        angle_x: 0.0,
+        angle_y: 0.0,
+        angle_z: 0.0,
+    };
     'running: loop {
-        // z = z + 0.01;
-        angle = angle + PI * (1.0/60.0);
         for event in event_pump.poll_iter() {
             match event {
                 Event::Quit {..} |
                 Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
                     break 'running
                 },
+                Event::KeyDown { keycode: Some(Keycode::RIGHT), ..} => {
+                    angle = angle + PI * (1.0/60.0);
+                },
+                Event::KeyDown { keycode: Some(Keycode::LEFT), ..} => {
+                    angle = angle - PI * (1.0/60.0);
+                },
+                Event::KeyDown { keycode: Some(Keycode::W), ..} => {
+                    translation_params.dz = translation_params.dz + 0.3;
+                },
+                Event::KeyDown { keycode: Some(Keycode::S), ..} => {
+                    translation_params.dz = translation_params.dz - 0.3;
+                }
                 _ => {}
             }
         }
@@ -64,7 +64,7 @@ pub fn main() {
         clear(&mut canvas);
 
         // for p in &points {
-        //     point(&mut canvas, screen(project(translate(rotate_xz(p.clone(), angle), z))));
+        //     point(&mut canvas, screen(project(translate_model(&translation_params, p.clone()))));
         // }
 
         for face in &faces {
@@ -73,8 +73,8 @@ pub fn main() {
                 let p2 = points[face[(index+1)%face.len()] as usize];
                 line(
                     &mut canvas,
-                    screen(project(translate(rotate_xz(p1.clone(), angle), z))),
-                    screen(project(translate(rotate_xz(p2.clone(), angle), z)))
+                    screen(project(translate_model(&translation_params, p1.clone()))),
+                    screen(project(translate_model(&translation_params, p2.clone()))),
                 );
             }
         }
@@ -126,11 +126,31 @@ pub fn translate(p: P, dz: f32) -> P {
     }
 }
 
-pub fn rotate_xz(p: P, angle: f32) -> P {
+pub fn rotate_x(p: P, angle: f32) -> P {
     P {
         x: p.x * angle.cos() - p.z * angle.sin(),
         z: p.x * angle.sin() + p.z * angle.cos(),
         y: p.y
+    }
+}
+
+pub fn translate_model(params: &TranslationParams, p: P) -> P {
+    let v = Vector4::new(p.x, p.y, p.z, 1.0);
+
+    let translation = Translation3::new(params.dx, params.dy, params.dz).to_homogeneous();
+    let rx = Rotation3::from_euler_angles(params.angle_x, 0.0, 0.0).to_homogeneous();
+    let ry = Rotation3::from_euler_angles(0.0, params.angle_y, 0.0).to_homogeneous();
+    let rz = Rotation3::from_euler_angles(0.0, 0.0, params.angle_z).to_homogeneous();
+
+    // Combine them (Order: Translation * Rotation)
+    let model_matrix = translation * rz * ry * rx;
+
+    let result = model_matrix * v;
+
+    P {
+        x: result[0],
+        y: result[1],
+        z: result[2]
     }
 }
 
@@ -162,4 +182,14 @@ pub struct P {
     x: f32,
     y: f32,
     z: f32
+}
+
+pub struct TranslationParams {
+    dx: f32,
+    dy: f32,
+    dz: f32,
+    angle_x: f32,
+    angle_y: f32,
+    angle_z: f32,
+
 }
