@@ -7,3 +7,4 @@ edition = "2024"
 sdl2 = { version = "0.38", features = ["image", "ttf", "mixer"] }
 log = "0.4.29"
 nalgebra = "*"
+rand = "0.8"
